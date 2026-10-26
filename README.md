@@ -50,7 +50,7 @@ Tests: `tests/e2e.mjs` drives a real browser through the shop, admin and social 
    - `OWNER_EMAIL`, `OWNER_PASSWORD` (10+ characters)
    - `CRON_SECRET` – another random string (Vercel uses it for the daily job)
 4. Deploy. Every deploy sets up the database automatically (`vercel-build`): it creates or updates the tables, loads the 43-product catalogue the first time only, and creates/updates the owner login from `OWNER_EMAIL` / `OWNER_PASSWORD`. Existing products and orders are never overwritten; a change that would delete data stops the deploy instead.
-5. After deploying, Check the `*.vercel.app` address: browse, place a COD test order, sign in at `/login`.
+5. After deploying, check the `*.vercel.app` address: browse, place a COD test order, sign in at `/login`.
 
 ### 2. Payments (Razorpay)
 1. Razorpay → Settings → API Keys → `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`.
