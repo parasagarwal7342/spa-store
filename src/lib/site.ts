@@ -36,3 +36,10 @@ export const BRANDS = [
 
 export const whatsappLink = (text: string, number: string = SITE.whatsapp) =>
   `https://wa.me/${number}?text=${encodeURIComponent(text)}`;
+
+/** Only same-site paths like "/account"; rejects "//evil.com" and "/\\evil.com". */
+export const safeNextPath = (next: unknown, fallback: string) =>
+  typeof next === 'string' && /^\/(?![\/\\])/.test(next) && !/[\r\n]/.test(next) ? next : fallback;
+
+/** JSON for <script type="application/ld+json">, safe against "</script>" in product text. */
+export const jsonLd = (data: unknown) => JSON.stringify(data).replace(/</g, '\\u003c');

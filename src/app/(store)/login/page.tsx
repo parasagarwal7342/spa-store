@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { getCurrentUser, isStaff } from '@/lib/auth';
+import { safeNextPath } from '@/lib/site';
 import { AuthForms } from './auth-forms';
 
 export const metadata: Metadata = { title: 'Sign in', robots: { index: false } };
@@ -8,7 +9,7 @@ export const metadata: Metadata = { title: 'Sign in', robots: { index: false } }
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
   const { next } = await searchParams;
   const user = await getCurrentUser();
-  if (user) redirect(next?.startsWith('/') && !next.startsWith('//') ? next : isStaff(user) ? '/admin' : '/account');
+  if (user) redirect(safeNextPath(next, isStaff(user) ? '/admin' : '/account'));
   return (
     <div className="container-x grid max-w-5xl items-center gap-10 py-12 md:grid-cols-2">
       <div className="hidden md:block">

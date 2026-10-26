@@ -3,14 +3,15 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Check, Minus, Plus, ShoppingBag, Zap } from 'lucide-react';
-import { useCart, type CartItem } from './cart-context';
+import { useCart, useMounted, type CartItem } from './cart-context';
 
 type Snapshot = Omit<CartItem, 'quantity'>;
 
 export function AddToCartButton({ product, disabled, compact }: { product: Snapshot; disabled?: boolean; compact?: boolean }) {
   const { add, items } = useCart();
   const [justAdded, setJustAdded] = useState(false);
-  const inCart = items.some((i) => i.productId === product.productId);
+  const mounted = useMounted();
+  const inCart = mounted && items.some((i) => i.productId === product.productId);
 
   const onClick = () => {
     add(product);

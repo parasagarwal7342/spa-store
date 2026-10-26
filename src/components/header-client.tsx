@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { LayoutDashboard, Menu, Search, ShoppingBag, User, X } from 'lucide-react';
-import { useCart } from './cart-context';
+import { useCart, useMounted } from './cart-context';
 
 const NAV = [
   { href: '/shop', label: 'Shop all' },
@@ -16,7 +16,8 @@ const NAV = [
 ];
 
 export function HeaderClient({ user }: { user: { name: string; staff: boolean } | null }) {
-  const { count, lastAddedAt } = useCart();
+  const { count: cartCount, lastAddedAt } = useCart();
+  const count = useMounted() ? cartCount : 0;
   const pathname = usePathname();
   const params = useSearchParams();
   const router = useRouter();

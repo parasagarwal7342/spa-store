@@ -16,9 +16,15 @@ export const instagramReady = () => !!(metaConfig().igUserId && metaConfig().pag
 
 async function graph<T>(path: string, params: Record<string, string>, method: 'GET' | 'POST' = 'POST'): Promise<T> {
   const body = new URLSearchParams({ ...params, access_token: metaConfig().pageToken! });
-  const res = await fetch(method === 'GET' ? `${GRAPH}/${path}?${body}` : `${GRAPH}/${path}`, {
-    method, body: method === 'POST' ? body : undefined, signal: AbortSignal.timeout(30000),
-  });
+  let res: Response;
+  try {
+    res = await fetch(method === 'GET' ? `${GRAPH}/${path}?${body}` : `${GRAPH}/${path}`, {
+      method, body: method === 'POST' ? body : undefined, signal: AbortSignal.timeout(30000), cache: 'no-store',
+    });
+  } catch (e) {
+    const cause = (e as { cause?: { code?: string; message?: string } }).cause;
+    throw new Error(`Could not reach Meta (${cause?.code ?? cause?.message ?? (e as Error).message})`);
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok || data.error) throw new Error(data.error?.message || `Meta API error ${res.status}`);
   return data as T;

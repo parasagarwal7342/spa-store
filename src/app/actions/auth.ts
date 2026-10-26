@@ -8,11 +8,10 @@ import { endSession, startSession } from '@/lib/auth';
 import { hashPassword, verifyPassword } from '@/lib/password';
 import { allow, clientIp } from '@/lib/rate-limit';
 import { emailSchema, firstError, phoneSchema } from '@/lib/validation';
+import { safeNextPath } from '@/lib/site';
 
 export type FormState = { error?: string } | undefined;
 
-const safeNext = (next: unknown, fallback: string) =>
-  typeof next === 'string' && next.startsWith('/') && !next.startsWith('//') ? next : fallback;
 
 export async function login(_prev: FormState, form: FormData): Promise<FormState> {
   const parsed = z.object({ email: emailSchema, password: z.string().min(1).max(128) }).safeParse({
@@ -25,7 +24,7 @@ export async function login(_prev: FormState, form: FormData): Promise<FormState
   const [u] = await db.select().from(users).where(eq(users.email, email));
   if (!u || !(await verifyPassword(password, u.passwordHash))) return { error: 'Incorrect email or password.' };
   await startSession(u);
-  redirect(safeNext(form.get('next'), u.role === 'customer' ? '/account' : '/admin'));
+  redirect(safeNextPath(form.get('next'), u.role === 'customer' ? '/account' : '/admin'));
 }
 
 export async function register(_prev: FormState, form: FormData): Promise<FormState> {
@@ -43,7 +42,7 @@ export async function register(_prev: FormState, form: FormData): Promise<FormSt
   if (existing) return { error: 'An account with this email already exists. Please sign in.' };
   const [u] = await db.insert(users).values({ name: d.name, email: d.email, phone: d.phone || null, passwordHash: await hashPassword(d.password) }).returning();
   await startSession(u);
-  redirect(safeNext(form.get('next'), '/account'));
+  redirect(safeNextPath(form.get('next'), '/account'));
 }
 
 export async function logout() {

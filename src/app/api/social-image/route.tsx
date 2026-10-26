@@ -25,7 +25,8 @@ export async function GET(req: Request) {
   const [p] = Number.isInteger(productId) && productId > 0 ? await db.select().from(products).where(eq(products.id, productId)) : [];
   const code = q.get('code');
   const [c] = code ? await db.select().from(coupons).where(eq(coupons.code, code.toUpperCase())) : [];
-  const photo = p?.images[0] ? await asDataUrl(p.images[0]) : null;
+  // Fall back to the shop logo if the product photo can't be fetched.
+  const photo = (p?.images[0] ? await asDataUrl(p.images[0]) : null) ?? await asDataUrl(`${SITE.url}/logo.png`);
   const headline = (q.get('headline') || (c ? `${c.percentOff}% OFF` : p ? displayName(p.name) : SITE.shortName)).slice(0, 60);
   const off = p ? percentOff(p.price, p.mrp) : 0;
   const host = SITE.url.replace(/^https?:\/\//, '');
@@ -35,7 +36,7 @@ export async function GET(req: Request) {
       <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: '#f7f5f0', fontFamily: 'sans-serif' }}>
         <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', background: '#ffffff', margin: 48, marginBottom: 0, borderRadius: 40, position: 'relative' }}>
           {photo ? <img src={photo} width={620} height={620} style={{ objectFit: 'contain' }} alt="" /> : <div style={{ fontSize: 110, fontWeight: 800, color: '#14161b' }}>{c ? `${c.percentOff}% OFF` : 'SPA'}</div>}
-          {c && (
+          {c && photo && (
             <div style={{ position: 'absolute', top: 36, left: 36, display: 'flex', background: '#14161b', color: '#f7c241', padding: '14px 26px', borderRadius: 20, fontSize: 44, fontWeight: 800 }}>
               {`${c.percentOff}% OFF`}
             </div>

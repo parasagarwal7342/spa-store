@@ -73,6 +73,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
 
+/**
+ * False during hydration, true afterwards. Parts that show cart contents use it so their first
+ * browser render matches the server (which never knows the cart), even if they hydrate late.
+ */
+export function useMounted() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  return mounted;
+}
+
 export function useCart() {
   const ctx = useContext(CartContext);
   if (!ctx) throw new Error('useCart must be used inside CartProvider');

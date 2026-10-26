@@ -8,7 +8,7 @@ import { WhatsAppIcon } from '@/components/whatsapp-icon';
 import { getProductBySlug, relatedProducts } from '@/lib/catalog';
 import { displayName, inr, percentOff } from '@/lib/format';
 import { FREE_SHIPPING_ABOVE } from '@/lib/shipping';
-import { BRANDS, SITE, whatsappLink } from '@/lib/site';
+import { BRANDS, SITE, whatsappLink, jsonLd } from '@/lib/site';
 import { Gallery } from './gallery';
 
 export const revalidate = 120;
@@ -35,7 +35,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const brandSlug = BRANDS.find((b) => b.name === p.brand)?.slug;
   const url = `${SITE.url}/p/${p.slug}`;
 
-  const jsonLd = {
+  const productLd = {
     '@context': 'https://schema.org',
     '@type': 'Product',
     name, sku: p.sku, image: p.images, description: p.description,
@@ -50,7 +50,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
   return (
     <div className="container-x py-6 lg:py-10">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(productLd) }} />
       <nav aria-label="Breadcrumb" className="mb-6 flex flex-wrap items-center gap-1 text-sm text-ink-muted">
         <Link href="/shop" className="hover:text-ink">Shop</Link><ChevronRight size={14} />
         {brandSlug && <><Link href={`/shop?brand=${brandSlug}`} className="hover:text-ink">{p.brand}</Link><ChevronRight size={14} /></>}
