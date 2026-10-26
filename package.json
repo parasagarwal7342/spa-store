@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx scripts/seed.ts",
-    "test:e2e": "node tests/e2e.mjs"
+    "test:e2e": "node tests/e2e.mjs",
+    "vercel-build": "drizzle-kit push && tsx scripts/seed.ts && next build"
   },
   "engines": {
     "node": ">=20"

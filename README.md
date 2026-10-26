@@ -49,9 +49,8 @@ Tests: `tests/e2e.mjs` drives a real browser through the shop, admin and social 
    - `NEXT_PUBLIC_SITE_URL` – `https://spaenterprise.in`
    - `OWNER_EMAIL`, `OWNER_PASSWORD` (10+ characters)
    - `CRON_SECRET` – another random string (Vercel uses it for the daily job)
-4. Create tables and load the catalogue once, from your computer, using the Neon connection string:
-   `DATABASE_URL=... OWNER_EMAIL=... OWNER_PASSWORD=... npx drizzle-kit push && npm run db:seed`
-5. Deploy. Check the `*.vercel.app` address: browse, place a COD test order, sign in at `/login`.
+4. Deploy. Every deploy sets up the database automatically (`vercel-build`): it creates or updates the tables, loads the 43-product catalogue the first time only, and creates/updates the owner login from `OWNER_EMAIL` / `OWNER_PASSWORD`. Existing products and orders are never overwritten; a change that would delete data stops the deploy instead.
+5. After deploying, Check the `*.vercel.app` address: browse, place a COD test order, sign in at `/login`.
 
 ### 2. Payments (Razorpay)
 1. Razorpay → Settings → API Keys → `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`.
