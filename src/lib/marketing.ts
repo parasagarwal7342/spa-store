@@ -9,6 +9,7 @@ import { facebookReady, instagramReady, postToFacebook, postToInstagram, replyTo
 import { notifyTeam } from './notify';
 import { FREE_SHIPPING_ABOVE } from './shipping';
 import { SITE } from './site';
+import { pickAngle, seasonHint } from './post-angles';
 
 // ---------- Settings ----------
 
@@ -31,22 +32,30 @@ function nextSlot(hourIst: number, after = new Date(), minMinutes = 30) {
 // ---------- Writing posts ----------
 
 const postSchema = z.object({
-  caption: z.string().describe('The post text, 2-5 short lines, ending with a clear call to action and the link.'),
+  caption: z.string().describe('The post text, 3-6 short lines: a scroll-stopping first line about the product, the price, why it is worth it, then a clear call to order and the link.'),
   hashtags: z.array(z.string()).describe('6-10 relevant hashtags without spaces, each starting with #'),
   headline: z.string().describe('3-6 word headline for the image, no emoji'),
 });
 
 const productLine = (p: Product) =>
-  `- ${displayName(p.name)} | ${p.brand} | ${p.category} | ${inr(p.price)}${p.mrp && p.mrp > p.price ? ` (MRP ${inr(p.mrp)}, ${percentOff(p.price, p.mrp)}% off)` : ''} | ${SITE.url}/p/${p.slug}`;
+  `- ${displayName(p.name)} (code ${p.sku}) | ${p.brand} | ${p.category} | ${inr(p.price)}${p.mrp && p.mrp > p.price ? ` (MRP ${inr(p.mrp)}, ${percentOff(p.price, p.mrp)}% off)` : ''} | ${SITE.url}/p/${p.slug}`;
 
 async function writePost(brief: string, items: Product[], link: string, fallback: { caption: string; headline: string }) {
   const settings = await getMarketingSettings();
   const system = `You write social media posts for ${SITE.name}, Delhi – authorised distributor of National Geographic bags/luggage and Shraddha brass jewellery. Website: ${SITE.url}.
 Voice: ${settings.brandVoice}
-Rules: write like a real person on the shop's team, not like an advert generator. Use only the facts given – never invent prices, discounts, stock levels, deadlines or product features. Mention that products are 100% original. At most 2 emoji. Put the link on its own line. Shipping facts you may use: free delivery in Delhi NCR and on orders above ${inr(FREE_SHIPPING_ABOVE)}; Cash on Delivery available.`;
+Rules: write like a real person on the shop's team, not like an advert generator. Use only the facts given – never invent prices, discounts, stock levels, deadlines, dates or product features, and make no health or spiritual-benefit claims.
+Make the product the hero. Open with a hook about how the piece looks or the moment it is for (a gift, a wedding outfit, everyday office wear) – not about the shop. Describe it vividly but only with the facts given (design, gold finish, handcrafted brass, size or capacity). Show the value plainly (MRP versus today's price) and end with one clear, confident call to order.
+Attract serious buyers, not just likes: state the price clearly near the top, say how to order (tap the link, or WhatsApp ${SITE.phone}; Cash on Delivery available), and mention that products are 100% original. Never use engagement bait such as "comment PRICE" or "DM for price", and no fake urgency.
+At most 2 emoji. Put the link on its own line. Shipping facts you may use: free delivery in Delhi NCR and on orders above ${inr(FREE_SHIPPING_ABOVE)}.`;
   const prompt = `${brief}\n\nProducts:\n${items.map(productLine).join('\n')}\n\nLink to use: ${link}`;
   const ai = await askClaude(system, prompt, postSchema);
-  if (!ai) return { caption: `${fallback.caption}\n\n${link}\n\n#NationalGeographic #Shraddha #SPAEnterprise #Delhi #OriginalProducts`, headline: fallback.headline };
+  if (!ai) {
+    const tags = items.some((i) => /shraddha/i.test(i.brand))
+      ? '#ShraddhaJewellery #BraceletsForWomen #GoldPlatedJewellery #BrassJewellery #KadaForMen #GiftForHer #IndianJewellery #DelhiShopping #SPAEnterprise'
+      : '#NationalGeographic #TravelBags #Backpack #SPAEnterprise #Delhi #OriginalProducts';
+    return { caption: `${fallback.caption}\n\n${link}\n\n${tags}`, headline: fallback.headline };
+  }
   const tags = ai.hashtags.map((t) => (t.startsWith('#') ? t : `#${t}`).replace(/\s+/g, '')).slice(0, 10).join(' ');
   const caption = ai.caption.includes(link) ? ai.caption : `${ai.caption}\n\n${link}`;
   return { caption: `${caption}\n\n${tags}`.slice(0, 2100), headline: ai.headline.slice(0, 60) };
@@ -54,12 +63,13 @@ Rules: write like a real person on the shop's team, not like an advert generator
 
 const imageUrl = (params: Record<string, string>) => `${SITE.url}/api/social-image?${new URLSearchParams(params)}`;
 
-async function pickProducts(limit: number, excludeRecentDays = 21) {
+async function pickProducts(limit: number, excludeRecentDays = 21, categories: string[] = []) {
   const recent = await db.select({ ids: socialPosts.productIds }).from(socialPosts)
     .where(gte(socialPosts.createdAt, sql`now() - make_interval(days => ${excludeRecentDays})`));
   const used = new Set(recent.flatMap((r) => r.ids));
   const pool = await db.select().from(products)
-    .where(and(eq(products.active, true), sql`(${products.stock} IS NULL OR ${products.stock} > 0)`))
+    .where(and(eq(products.active, true), sql`(${products.stock} IS NULL OR ${products.stock} > 0)`,
+      categories.length ? inArray(products.category, categories) : undefined))
     .orderBy(desc(products.featured), desc(sql`COALESCE(${products.mrp} - ${products.price}, 0)`), asc(products.id));
   const fresh = pool.filter((p) => !used.has(p.id));
   return (fresh.length >= limit ? fresh : pool).slice(0, limit);
@@ -91,20 +101,59 @@ export async function queueOfferPost(code: string) {
   return true;
 }
 
-/** Product spotlight post for the regular schedule. */
+/** Hand-written captions used when the AI writer isn't configured. */
+function jewelleryFallback(items: Product[], angleKey: string, link: string) {
+  const p = items[0];
+  const off = percentOff(p.price, p.mrp);
+  const priceLine = items.length > 1
+    ? `Prices from ${inr(Math.min(...items.map((i) => i.price)))} (MRP ${inr(p.mrp)})`
+    : `${inr(p.price)}${off ? ` (MRP ${inr(p.mrp)} – ${off}% off)` : ''} · code ${p.sku}`;
+  const opener: Record<string, string> = {
+    everyday: 'Office to evening, one bracelet that does it all ✨',
+    gift: 'Looking for a gift she’ll actually wear? 🎁',
+    stack: 'Wear it alone or stack it with your watch – it works both ways.',
+    craft: 'Handcrafted brass, finished in long-lasting gold.',
+    value: 'Real Shraddha jewellery, honest price.',
+    care: 'Tip: keep perfume and water away from gold-finish jewellery and it stays bright for years.',
+    men: 'A kada he’ll wear every single day.',
+  };
+  return `${opener[angleKey] ?? opener.everyday}\n${priceLine}\n100% original from the authorised distributor · 1-year coating warranty · Cash on Delivery\nOrder: tap the link or WhatsApp ${SITE.phone}`;
+}
+
+/** Product post for the regular schedule. Favours the focus categories (e.g. bracelets) set in Admin → Social media. */
 export async function createPromoPost(scheduledAt: Date, productId?: number): Promise<SocialPost | null> {
-  const items = productId ? await db.select().from(products).where(eq(products.id, productId)) : await pickProducts(1);
+  const settings = await getMarketingSettings();
+  const focus = !productId && settings.focusCategories.length > 0 && Math.random() * 100 < settings.focusSharePercent;
+  const [{ n: promoCount }] = await db.select({ n: sql<number>`count(*)::int` }).from(socialPosts).where(eq(socialPosts.kind, 'promo'));
+  // Every third focus post shows a small collection instead of a single piece.
+  const collection = focus && promoCount % 3 === 2;
+  const items = productId
+    ? await db.select().from(products).where(eq(products.id, productId))
+    : await pickProducts(collection ? 3 : 1, 21, focus ? settings.focusCategories : []);
   const p = items[0];
   if (!p) return null;
-  const link = `${SITE.url}/p/${p.slug}?utm_source=social&utm_medium=post&utm_campaign=spotlight`;
+
+  const jewellery = /shraddha/i.test(p.brand) || /bracelet|kada|bangle|necklace|chain|ring|earring/i.test(`${p.category} ${p.name}`);
+  const angle = pickAngle(promoCount, /kada/i.test(p.name));
+  const season = seasonHint(scheduledAt);
+  const campaign = collection ? 'collection' : jewellery ? `jewellery-${angle.key}` : 'spotlight';
+  const link = collection
+    ? `${SITE.url}/shop?brand=shraddha&category=${encodeURIComponent(p.category)}&utm_source=social&utm_medium=post&utm_campaign=${campaign}`
+    : `${SITE.url}/p/${p.slug}?utm_source=social&utm_medium=post&utm_campaign=${campaign}`;
+
+  const brief = collection
+    ? `Write a "pick your favourite" collection post featuring the ${items.length} pieces below, each with its code and price. Angle: ${angle.brief} If it fits naturally, connect it to ${season}.`
+    : jewellery
+      ? `Write a post for the piece below. Angle: ${angle.brief} If it fits naturally, connect it to ${season}. Mention the product code so people can ask for it on WhatsApp.`
+      : `Write a product spotlight post for the product below. Pick one practical angle (travel, daily commute, gifting, festive occasions, durability or sustainability) that genuinely fits it.`;
   const off = percentOff(p.price, p.mrp);
-  const { caption, headline } = await writePost(
-    `Write a product spotlight post for the product below. Pick one practical angle (travel, daily commute, gifting, festive occasions, durability or sustainability) that genuinely fits it.`,
-    [p], link,
-    { caption: `${displayName(p.name)} – now ${inr(p.price)}${off ? ` (${off}% off MRP)` : ''}.\n100% original from the authorised distributor. Free delivery in Delhi NCR.`, headline: displayName(p.name).split(' ').slice(0, 5).join(' ') },
-  );
+  const fallback = jewellery
+    ? { caption: jewelleryFallback(items, angle.key, link), headline: collection ? `Bracelets from ${inr(Math.min(...items.map((i) => i.price)))}` : `${off ? `${off}% OFF · ` : ''}${inr(p.price)}` }
+    : { caption: `${displayName(p.name)} – now ${inr(p.price)}${off ? ` (${off}% off MRP)` : ''}.\n100% original from the authorised distributor. Free delivery in Delhi NCR.`, headline: displayName(p.name).split(' ').slice(0, 5).join(' ') };
+  const { caption, headline } = await writePost(brief, items, link, fallback);
+
   const [post] = await db.insert(socialPosts).values({
-    kind: 'promo', caption, link, productIds: [p.id], scheduledAt,
+    kind: 'promo', caption, link, productIds: items.map((i) => i.id), scheduledAt,
     imageUrl: imageUrl({ type: 'product', product: String(p.id), headline }),
   }).returning();
   return post;

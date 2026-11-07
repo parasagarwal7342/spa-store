@@ -178,6 +178,10 @@ export const marketingSettings = pgTable('marketing_settings', {
   /** Hour of day (IST) for scheduled posts. */
   postHourIst: integer('post_hour_ist').notNull().default(19),
   brandVoice: text('brand_voice').notNull().default('Warm, helpful and proud of original products. Simple English with a light Hinglish touch when it fits. Never pushy.'),
+  /** Product categories to promote most (e.g. bracelets). Empty = no focus. */
+  focusCategories: jsonb('focus_categories').$type<string[]>().notNull().default(['Bangle Bracelet Armlet']),
+  /** Share of product posts (0-100) that feature the focus categories. */
+  focusSharePercent: integer('focus_share_percent').notNull().default(70),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

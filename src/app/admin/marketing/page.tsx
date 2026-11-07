@@ -1,6 +1,6 @@
 import { desc, inArray, ne } from 'drizzle-orm';
 import { CheckCircle2, XCircle } from 'lucide-react';
-import { db, socialComments, socialPosts } from '@/db';
+import { db, products, socialComments, socialPosts } from '@/db';
 import { requireStaff } from '@/lib/auth';
 import { aiReady } from '@/lib/ai';
 import { formatDateTime } from '@/lib/format';
@@ -22,12 +22,13 @@ const Status = ({ ok, label, hint }: { ok: boolean; label: string; hint: string 
 export default async function MarketingPage() {
   const user = await requireStaff();
   const owner = user.role === 'owner';
-  const [settings, upcoming, recent, needsHuman, replied] = await Promise.all([
+  const [settings, upcoming, recent, needsHuman, replied, categories] = await Promise.all([
     getMarketingSettings(),
     db.select().from(socialPosts).where(inArray(socialPosts.status, ['scheduled', 'draft', 'publishing', 'failed'])).orderBy(socialPosts.scheduledAt).limit(20),
     db.select().from(socialPosts).where(inArray(socialPosts.status, ['posted', 'partial'])).orderBy(desc(socialPosts.postedAt)).limit(10),
     db.select().from(socialComments).where(inArray(socialComments.status, ['needs_human', 'failed'])).orderBy(desc(socialComments.createdAt)).limit(30),
     db.select().from(socialComments).where(ne(socialComments.status, 'needs_human')).orderBy(desc(socialComments.updatedAt)).limit(15),
+    db.selectDistinct({ c: products.category }).from(products).orderBy(products.category),
   ]);
   const webhookReady = !!(process.env.META_APP_SECRET && process.env.META_WEBHOOK_VERIFY_TOKEN);
 
@@ -57,6 +58,17 @@ export default async function MarketingPage() {
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="autoReplyEnabled" defaultChecked={settings.autoReplyEnabled} className="h-4 w-4 accent-ink" /> Reply to comments automatically</label>
               <label><span className="label">Product posts per week</span><input name="promoPostsPerWeek" type="number" min={0} max={14} defaultValue={settings.promoPostsPerWeek} className="input" /></label>
               <label><span className="label">Posting time (IST, 24h)</span><input name="postHourIst" type="number" min={6} max={22} defaultValue={settings.postHourIst} className="input" /></label>
+              <fieldset className="sm:col-span-2">
+                <legend className="label">Boost these products (most product posts will feature them)</legend>
+                <div className="flex flex-wrap gap-2">
+                  {categories.map(({ c }) => (
+                    <label key={c} className="flex items-center gap-2 rounded-lg border border-line px-3 py-1.5 text-sm">
+                      <input type="checkbox" name="focusCategories" value={c} defaultChecked={settings.focusCategories.includes(c)} className="h-4 w-4 accent-ink" /> {c}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              <label><span className="label">Share of product posts for boosted products (%)</span><input name="focusSharePercent" type="number" min={0} max={100} defaultValue={settings.focusSharePercent} className="input" /></label>
               <label className="sm:col-span-2"><span className="label">Brand voice (how posts and replies should sound)</span><textarea name="brandVoice" rows={3} defaultValue={settings.brandVoice} className="input resize-none" /></label>
             </ActionForm>
           ) : (

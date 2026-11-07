@@ -19,13 +19,15 @@ export async function saveMarketingSettings(_prev: ActionState, form: FormData):
     promoPostsPerWeek: z.coerce.number().int().min(0).max(14),
     postHourIst: z.coerce.number().int().min(6).max(22),
     brandVoice: z.string().trim().min(10, 'Describe the brand voice in a sentence or two').max(600),
+    focusSharePercent: z.coerce.number().int().min(0).max(100),
   }).safeParse(Object.fromEntries(form));
+  const focusCategories = form.getAll('focusCategories').filter((v): v is string => typeof v === 'string' && v.length > 0).slice(0, 20);
   if (!parsed.success) return { error: firstError(parsed.error) };
   const d = parsed.data;
   await getMarketingSettings();
   await db.update(marketingSettings).set({
     autoPostEnabled: !!d.autoPostEnabled, autoReplyEnabled: !!d.autoReplyEnabled, promoPostsPerWeek: d.promoPostsPerWeek,
-    postHourIst: d.postHourIst, brandVoice: d.brandVoice, updatedAt: new Date(),
+    postHourIst: d.postHourIst, brandVoice: d.brandVoice, focusCategories, focusSharePercent: d.focusSharePercent, updatedAt: new Date(),
   }).where(eq(marketingSettings.id, 1));
   done();
   return { ok: true, message: 'Automation settings saved.' };
